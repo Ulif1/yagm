@@ -106,6 +106,14 @@ ipcMain.handle('git:rebaseBranch', async (_, targetBranch: string) => {
   return await gitService.rebaseBranch(targetBranch);
 });
 
+ipcMain.handle('git:getCommits', async (_, options) => {
+  return await gitService.getCommits(options);
+});
+
+ipcMain.handle('git:cherryPickCommits', async (_, commitHashes: string[], targetBranch: string, options) => {
+  return await gitService.cherryPickCommits(commitHashes, targetBranch, options);
+});
+
 // Repository management handlers
 ipcMain.handle('repositories:discover', async () => {
   return await gitService.discoverRepositories();

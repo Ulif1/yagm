@@ -13,9 +13,10 @@ import {
   ListItemText,
   Divider
 } from '@mui/material';
-import { GitStatus, Repository } from '../types';
+import { GitStatus, Repository, CommitWithDiff, CherryPickResult } from '../types';
 import CommitHistory from './CommitHistory';
 import BranchManager from './BranchManager';
+import CherryPickDialog from './CherryPickDialog';
 
 interface MainContentProps {
   currentRepository: Repository | null;
@@ -29,6 +30,8 @@ const MainContent: React.FC<MainContentProps> = ({
   const [status, setStatus] = useState<GitStatus | null>(null);
   const [commitMessage, setCommitMessage] = useState('');
   const [branches, setBranches] = useState<string[]>([]);
+  const [selectedCommits, setSelectedCommits] = useState<CommitWithDiff[]>([]);
+  const [cherryPickDialogOpen, setCherryPickDialogOpen] = useState(false);
 
   // Load git status and branches when repository changes
   useEffect(() => {
@@ -108,6 +111,32 @@ const MainContent: React.FC<MainContentProps> = ({
     } catch (error) {
       console.error('Failed to merge branch:', error);
     }
+  };
+
+  const handleCommitsSelected = (commits: CommitWithDiff[]) => {
+    setSelectedCommits(commits);
+  };
+
+  const handleCherryPick = async (
+    commitHashes: string[],
+    targetBranch: string,
+    options: { noCommit?: boolean; squash?: boolean }
+  ): Promise<CherryPickResult> => {
+    try {
+      return await window.electronAPI.git.cherryPickCommits(commitHashes, targetBranch, options);
+    } catch (error) {
+      console.error('Cherry pick failed:', error);
+      return {
+        success: false,
+        conflicts: [],
+        appliedCommits: []
+      };
+    }
+  };
+
+  const handleCherryPickDialogClose = () => {
+    setCherryPickDialogOpen(false);
+    setSelectedCommits([]);
   };
 
   if (!currentRepository) {
@@ -235,7 +264,34 @@ const MainContent: React.FC<MainContentProps> = ({
           </Grid>
         </Grid>
 
-        <CommitHistory currentRepository={currentRepository} />
+        <CommitHistory
+          currentRepository={currentRepository}
+          onCommitsSelected={handleCommitsSelected}
+        />
+
+        {selectedCommits.length > 0 && (
+          <Box sx={{ mt: 2, p: 2, bgcolor: 'primary.light', borderRadius: 1 }}>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              {selectedCommits.length} commit{selectedCommits.length !== 1 ? 's' : ''} selected
+            </Typography>
+            <Button
+              size="small"
+              variant="contained"
+              onClick={() => setCherryPickDialogOpen(true)}
+            >
+              Cherry Pick to Branch
+            </Button>
+          </Box>
+        )}
+
+        <CherryPickDialog
+          open={cherryPickDialogOpen}
+          onClose={handleCherryPickDialogClose}
+          selectedCommits={selectedCommits}
+          availableBranches={branches}
+          currentBranch={currentRepository?.currentBranch || ''}
+          onCherryPick={handleCherryPick}
+        />
       </Box>
     </Box>
   );

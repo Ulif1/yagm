@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import { GetCommitsOptions, CherryPickOptions } from './types';
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -14,6 +15,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       checkoutBranch: (name: string) => ipcRenderer.invoke('git:checkoutBranch', name),
       mergeBranch: (sourceBranch: string) => ipcRenderer.invoke('git:mergeBranch', sourceBranch),
       rebaseBranch: (targetBranch: string) => ipcRenderer.invoke('git:rebaseBranch', targetBranch),
+      getCommits: (options?: GetCommitsOptions) => ipcRenderer.invoke('git:getCommits', options),
+      cherryPickCommits: (commitHashes: string[], targetBranch: string, options?: CherryPickOptions) => ipcRenderer.invoke('git:cherryPickCommits', commitHashes, targetBranch, options),
   },
 
   // Repository management

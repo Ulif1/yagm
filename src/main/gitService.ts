@@ -1,8 +1,8 @@
-import simpleGit, { SimpleGit, StatusResult } from 'simple-git';
+import simpleGit, { SimpleGit, StatusResult, LogResult } from 'simple-git';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { GitStatus, Repository } from './types';
+import { GitStatus, Repository, CommitWithDiff, GetCommitsOptions, CherryPickOptions, CherryPickResult, DiffFile, CommitDiff } from './types';
 
 export class GitService {
   private git: SimpleGit | null = null;
@@ -199,6 +199,231 @@ export class GitService {
   }
 
   /**
+   * Get commit history with optional diffs
+   */
+  async getCommits(options: GetCommitsOptions = {}): Promise<CommitWithDiff[]> {
+    if (!this.git) {
+      console.log('Git not initialized');
+      return [];
+    }
+
+    try {
+      console.log('Getting commits with options:', options);
+
+      // Use simple-git log with basic options
+      let logOptions: any = {};
+
+      if (options.limit) {
+        logOptions['--max-count'] = options.limit.toString();
+      }
+
+      if (options.skip) {
+        logOptions['--skip'] = options.skip.toString();
+      }
+
+      console.log('Git log options:', logOptions);
+
+      // Try simple log first
+      const logResult: LogResult = await this.git.log(logOptions);
+      console.log('Git log result:', logResult.all.length, 'commits found');
+
+      let commits: CommitWithDiff[] = logResult.all.map(commit => ({
+        hash: commit.hash,
+        message: commit.message,
+        author: commit.author_name,
+        date: new Date(commit.date),
+        branch: commit.refs || undefined,
+        diff: {
+          files: [],
+          totalAdditions: 0,
+          totalDeletions: 0
+        }
+      }));
+
+      // Filter by message if specified
+      if (options.messageFilter) {
+        const filter = options.messageFilter.toLowerCase();
+        commits = commits.filter(commit =>
+          commit.message.toLowerCase().includes(filter)
+        );
+      }
+
+      // Load diffs if requested
+      if (options.includeDiffs) {
+        for (const commit of commits) {
+          try {
+            const diff = await this.git.show([commit.hash, '--stat', '--patch']);
+            const diffData = this.parseDiff(diff);
+            commit.diff = diffData;
+          } catch (error) {
+            console.warn(`Failed to load diff for commit ${commit.hash}:`, error);
+          }
+        }
+      }
+
+      return commits;
+    } catch (error) {
+      console.error('Failed to get commits:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Parse git show output into structured diff data
+   */
+  private parseDiff(diffOutput: string): CommitDiff {
+    const lines = diffOutput.split('\n');
+    const files: CommitWithDiff['diff']['files'] = [];
+    let totalAdditions = 0;
+    let totalDeletions = 0;
+
+    let currentFile: DiffFile | null = null;
+    let inPatch = false;
+    let patchLines: string[] = [];
+
+    for (const line of lines) {
+      if (line.startsWith('diff --git')) {
+        // Save previous file if exists
+        if (currentFile) {
+          currentFile.patch = patchLines.join('\n');
+          files.push(currentFile);
+        }
+
+        // Start new file
+        const match = line.match(/diff --git a\/(.+) b\/(.+)/);
+        if (match) {
+          currentFile = {
+            filename: match[2],
+            additions: 0,
+            deletions: 0,
+            patch: ''
+          };
+          inPatch = false;
+          patchLines = [];
+        }
+      } else if (currentFile && line.startsWith('@@')) {
+        // Start of patch hunk
+        inPatch = true;
+        patchLines.push(line);
+      } else if (inPatch && currentFile) {
+        patchLines.push(line);
+        if (line.startsWith('+') && !line.startsWith('+++')) {
+          currentFile.additions++;
+          totalAdditions++;
+        } else if (line.startsWith('-') && !line.startsWith('---')) {
+          currentFile.deletions++;
+          totalDeletions++;
+        }
+      }
+    }
+
+    // Save last file
+    if (currentFile) {
+      currentFile.patch = patchLines.join('\n');
+      files.push(currentFile);
+    }
+
+    return {
+      files,
+      totalAdditions,
+      totalDeletions
+    };
+  }
+
+  /**
+   * Cherry pick one or more commits
+   */
+  async cherryPickCommits(commitHashes: string[], targetBranch: string, options: CherryPickOptions = {}): Promise<CherryPickResult> {
+    if (!this.git) {
+      return {
+        success: false,
+        conflicts: [],
+        appliedCommits: []
+      };
+    }
+
+    const result: CherryPickResult = {
+      success: true,
+      conflicts: [],
+      appliedCommits: []
+    };
+
+    // Get current branch for restoration later
+    const currentBranch = await this.getCurrentBranch();
+    const switchedBranch = currentBranch !== targetBranch;
+
+    try {
+      // Checkout target branch if different from current
+      if (switchedBranch) {
+        await this.git.checkout(targetBranch);
+      }
+
+      // Process each commit
+      for (const commitHash of commitHashes) {
+        try {
+          const cherryPickArgs = [commitHash];
+
+          if (options.noCommit) {
+            cherryPickArgs.push('--no-commit');
+          }
+
+          await this.git.raw(['cherry-pick', ...cherryPickArgs]);
+
+          result.appliedCommits.push(commitHash);
+        } catch (error: unknown) {
+          // Check if there are conflicts
+          const status = await this.getStatus();
+          if (status.unstaged.length > 0 || status.staged.length > 0) {
+            result.conflicts = [...status.unstaged, ...status.staged];
+            result.success = false;
+            break;
+          } else {
+            // Other error
+            throw error;
+          }
+        }
+      }
+
+      // If squashing multiple commits, create a single commit
+      if (options.squash && commitHashes.length > 1 && result.success && !options.noCommit) {
+        await this.git.commit(`Squashed ${commitHashes.length} commits`);
+      }
+
+    } catch (error) {
+      console.error('Failed to cherry pick commits:', error);
+      result.success = false;
+    }
+
+    // Restore original branch if we switched
+    if (currentBranch !== targetBranch) {
+      try {
+        await this.git.checkout(currentBranch);
+      } catch (checkoutError) {
+        console.error('Failed to restore original branch:', checkoutError);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Get current branch name
+   */
+  private async getCurrentBranch(): Promise<string> {
+    if (!this.git) {
+      return '';
+    }
+
+    try {
+      const branches = await this.git.branch();
+      return branches.current;
+    } catch (error) {
+      console.error('Failed to get current branch:', error);
+      return '';
+    }
+  }
+
+  /**
    * Get current repository information
    */
   async getCurrentRepository(): Promise<Repository | null> {
@@ -232,12 +457,15 @@ export class GitService {
   async discoverRepositories(): Promise<Repository[]> {
     const repositories: Repository[] = [];
     const commonPaths = [
-      path.join(os.homedir(), 'Projects'),
-      path.join(os.homedir(), 'Documents'),
-      path.join(os.homedir(), 'Desktop'),
-      path.join(os.homedir(), 'workspace'),
-      path.join(os.homedir(), 'code'),
+      path.join(require('os').homedir(), 'Projects'),
+      path.join(require('os').homedir(), 'Documents'),
+      path.join(require('os').homedir(), 'Desktop'),
+      path.join(require('os').homedir(), 'workspace'),
+      path.join(require('os').homedir(), 'code'),
+      process.cwd(), // Also check current working directory
     ];
+
+    console.log('Checking paths for repositories:', commonPaths);
 
     // Also check recently opened repositories (stored in a simple file)
     const recentRepos = await this.getRecentRepositories();
@@ -246,9 +474,12 @@ export class GitService {
 
     for (const checkPath of pathsToCheck) {
       try {
+        console.log('Scanning directory:', checkPath);
         const foundRepos = await this.scanDirectoryForRepos(checkPath);
+        console.log('Found repos in', checkPath, ':', foundRepos.length);
         repositories.push(...foundRepos);
       } catch (error) {
+        console.log('Error scanning directory:', checkPath, error);
         // Skip directories that don't exist or can't be read
         continue;
       }
@@ -279,9 +510,11 @@ export class GitService {
       // Check if current directory is a git repo
       if (items.includes('.git')) {
         try {
+          console.log('Found .git in:', dirPath);
           const tempGit = simpleGit(dirPath);
           const branches = await tempGit.branch();
           const currentBranch = branches.current;
+          console.log('Repository branch:', currentBranch);
 
           repositories.push({
             path: dirPath,
@@ -289,6 +522,7 @@ export class GitService {
             currentBranch,
           });
         } catch (error) {
+          console.log('Error opening git repo:', dirPath, error);
           // Not a valid git repo, skip
         }
       }

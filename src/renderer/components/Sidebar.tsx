@@ -70,7 +70,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         )}
       </List>
       <Divider />
-      <Box sx={{ p: 2 }}>
+      <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
         <Button
           fullWidth
           variant="outlined"
@@ -78,6 +78,33 @@ const Sidebar: React.FC<SidebarProps> = ({
           onClick={onAddRepository}
         >
           Add Repository
+        </Button>
+        <Button
+          fullWidth
+          variant="text"
+          size="small"
+          onClick={async () => {
+            try {
+              // Try to open current working directory
+              const success = await window.electronAPI.repositories.open('.');
+              if (success) {
+                // Refresh repositories and get current
+                onRefresh();
+                setTimeout(() => {
+                  window.electronAPI.repositories.getCurrent().then(current => {
+                    if (current) {
+                      // This would need to be passed up to the parent
+                      console.log('Opened current directory:', current);
+                    }
+                  });
+                }, 500);
+              }
+            } catch (error) {
+              console.error('Failed to open current directory:', error);
+            }
+          }}
+        >
+          Open Current Directory
         </Button>
       </Box>
     </Box>

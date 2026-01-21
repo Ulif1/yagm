@@ -29,7 +29,9 @@ function App() {
 
   const loadRepositories = async () => {
     try {
+      console.log('Discovering repositories...');
       const repos = await window.electronAPI.repositories.discover();
+      console.log('Discovered repositories:', repos);
       setRepositories(repos);
     } catch (error) {
       console.error('Failed to load repositories:', error);
@@ -38,8 +40,14 @@ function App() {
 
   const handleRepositorySelect = async (repo: Repository) => {
     try {
-      await window.electronAPI.repositories.open(repo.path);
-      setCurrentRepository(repo);
+      console.log('Opening repository:', repo.path);
+      const success = await window.electronAPI.repositories.open(repo.path);
+      console.log('Repository open result:', success);
+      if (success) {
+        const current = await window.electronAPI.repositories.getCurrent();
+        console.log('Current repository after open:', current);
+        setCurrentRepository(current || repo);
+      }
     } catch (error) {
       console.error('Failed to open repository:', error);
     }
