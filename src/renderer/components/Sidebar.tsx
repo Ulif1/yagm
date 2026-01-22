@@ -12,7 +12,8 @@ import {
   IconButton,
   Tooltip
 } from '@mui/material';
-import { FolderOpen, Add, Refresh, Delete } from '@mui/icons-material';
+import { FolderOpen, Add, Refresh, Delete, Settings, Brightness4, Brightness7 } from '@mui/icons-material';
+import { Menu, MenuItem } from '@mui/material';
 import { Repository } from '../types';
 
 interface SidebarProps {
@@ -24,6 +25,8 @@ interface SidebarProps {
   scanPaths: string[];
   onAddScanPath: () => void;
   onRemoveScanPath: (index: number) => void;
+  currentTheme: any;
+  onToggleTheme: () => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -34,19 +37,42 @@ const Sidebar: React.FC<SidebarProps> = ({
   onRefresh,
   scanPaths,
   onAddScanPath,
-  onRemoveScanPath
+  onRemoveScanPath,
+  currentTheme,
+  onToggleTheme
 }) => {
+  const [settingsAnchor, setSettingsAnchor] = React.useState<null | HTMLElement>(null);
+
+  const handleSettingsClick = (event: React.MouseEvent<HTMLElement>) => {
+    setSettingsAnchor(event.currentTarget);
+  };
+
+  const handleSettingsClose = () => {
+    setSettingsAnchor(null);
+  };
+
+  const handleToggleTheme = () => {
+    onToggleTheme();
+    setSettingsAnchor(null);
+  };
   return (
     <Box sx={{ width: 250, bgcolor: 'background.paper', borderRight: 1, borderColor: 'divider', display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Typography variant="h6" component="div">
           Repositories
         </Typography>
-        <Tooltip title="Refresh repositories">
-          <IconButton size="small" onClick={onRefresh}>
-            <Refresh />
-          </IconButton>
-        </Tooltip>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Tooltip title="Settings">
+            <IconButton size="small" onClick={handleSettingsClick}>
+              <Settings />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Refresh repositories">
+            <IconButton size="small" onClick={onRefresh}>
+              <Refresh />
+            </IconButton>
+          </Tooltip>
+        </Box>
       </Box>
       <Divider />
       <List sx={{ flex: 1, overflow: 'auto' }}>
@@ -147,6 +173,17 @@ const Sidebar: React.FC<SidebarProps> = ({
           Add Scan Path
         </Button>
       </Box>
+
+      <Menu
+        anchorEl={settingsAnchor}
+        open={Boolean(settingsAnchor)}
+        onClose={handleSettingsClose}
+      >
+        <MenuItem onClick={handleToggleTheme}>
+          {currentTheme.palette.mode === 'light' ? <Brightness4 sx={{ mr: 1 }} /> : <Brightness7 sx={{ mr: 1 }} />}
+          Switch to {currentTheme.palette.mode === 'light' ? 'Dark' : 'Light'} Theme
+        </MenuItem>
+      </Menu>
     </Box>
   );
 };

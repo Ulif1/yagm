@@ -8,6 +8,39 @@ import CommitHistory from './components/CommitHistory';
 import CherryPickDialog from './components/CherryPickDialog';
 import { Repository, CommitWithDiff, CherryPickResult } from './types';
 
+interface Config {
+  scanPaths: string[];
+  theme: 'light' | 'dark';
+}
+
+const lightTheme = createTheme({
+  palette: {
+    mode: 'light',
+    primary: { main: '#1976d2' },
+    secondary: { main: '#dc004e' },
+    background: { default: '#fafafa', paper: '#ffffff' }
+  },
+  transitions: {
+    duration: {
+      standard: 500
+    }
+  }
+});
+
+const darkTheme = createTheme({
+  palette: {
+    mode: 'dark',
+    primary: { main: '#90caf9' },
+    secondary: { main: '#f48fb1' },
+    background: { default: '#121212', paper: '#1e1e1e' }
+  },
+  transitions: {
+    duration: {
+      standard: 500
+    }
+  }
+});
+
 const theme = createTheme({
   palette: {
     mode: 'light',
@@ -24,6 +57,7 @@ function App() {
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [currentRepository, setCurrentRepository] = useState<Repository | null>(null);
   const [scanPaths, setScanPaths] = useState<string[]>([]);
+  const [currentTheme, setCurrentTheme] = useState(lightTheme);
   const [selectedCommits, setSelectedCommits] = useState<CommitWithDiff[]>([]);
   const [branches, setBranches] = useState<string[]>([]);
   const [cherryPickDialogOpen, setCherryPickDialogOpen] = useState(false);
@@ -45,10 +79,13 @@ function App() {
 
   const loadConfig = async () => {
     try {
-      const config = await (window.electronAPI as any).config.load();
+      const config: Config = await (window.electronAPI as any).config.load();
       setScanPaths(config.scanPaths);
+      setCurrentTheme(config.theme === 'dark' ? darkTheme : lightTheme);
     } catch (error) {
       console.error('Failed to load config:', error);
+      // Default to light theme
+      setCurrentTheme(lightTheme);
     }
   };
 
@@ -113,7 +150,7 @@ function App() {
       if (path) {
         const newScanPaths = [...scanPaths, path];
         setScanPaths(newScanPaths);
-        await (window.electronAPI as any).config.save({ scanPaths: newScanPaths });
+        await (window.electronAPI as any).config.save({ scanPaths: newScanPaths, theme: currentTheme.palette.mode });
         await loadRepositories(); // Refresh repos
       }
     } catch (error) {
@@ -124,8 +161,14 @@ function App() {
   const handleRemoveScanPath = async (index: number) => {
     const newScanPaths = scanPaths.filter((_, i) => i !== index);
     setScanPaths(newScanPaths);
-    await (window.electronAPI as any).config.save({ scanPaths: newScanPaths });
+    await (window.electronAPI as any).config.save({ scanPaths: newScanPaths, theme: currentTheme.palette.mode });
     await loadRepositories(); // Refresh repos
+  };
+
+  const toggleTheme = async () => {
+    const newTheme = currentTheme.palette.mode === 'light' ? darkTheme : lightTheme;
+    setCurrentTheme(newTheme);
+    await (window.electronAPI as any).config.save({ scanPaths, theme: newTheme.palette.mode as 'light' | 'dark' });
   };
 
   const handleCherryPick = async (
@@ -146,7 +189,7 @@ function App() {
   };
 
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={currentTheme}>
       <CssBaseline />
       <Box sx={{ display: 'flex', height: '100vh' }}>
         <Box sx={{ flex: 1, minWidth: 250 }}>
@@ -159,6 +202,8 @@ function App() {
             scanPaths={scanPaths}
             onAddScanPath={handleAddScanPath}
             onRemoveScanPath={handleRemoveScanPath}
+            currentTheme={currentTheme}
+            onToggleTheme={toggleTheme}
           />
         </Box>
         <Box sx={{ flex: 4, position: 'relative' }}>
