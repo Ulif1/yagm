@@ -1,6 +1,11 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import * as path from 'path';
+import * as fs from 'fs';
 import { GitService } from './gitService';
+
+interface Config {
+  scanPaths: string[];
+}
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
@@ -9,6 +14,25 @@ if (require('electron-squirrel-startup')) {
 
 const isDev = process.env.NODE_ENV === 'development';
 const gitService = new GitService();
+
+const configPath = path.join(app.getPath('userData'), 'config.json');
+
+const loadConfig = (): Config => {
+  try {
+    const data = fs.readFileSync(configPath, 'utf-8');
+    return JSON.parse(data);
+  } catch {
+    return { scanPaths: [] };
+  }
+};
+
+const saveConfig = (config: Config): void => {
+  try {
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  } catch (error) {
+    console.error('Failed to save config:', error);
+  }
+};
 
 const createWindow = (): void => {
   // Create the browser window.
@@ -116,7 +140,8 @@ ipcMain.handle('git:cherryPickCommits', async (_, commitHashes: string[], target
 
 // Repository management handlers
 ipcMain.handle('repositories:discover', async () => {
-  return await gitService.discoverRepositories();
+  const config = loadConfig();
+  return await gitService.discoverRepositories(config.scanPaths);
 });
 
 ipcMain.handle('repositories:open', async (_, repoPath: string) => {
@@ -125,6 +150,15 @@ ipcMain.handle('repositories:open', async (_, repoPath: string) => {
 
 ipcMain.handle('repositories:getCurrent', async () => {
   return await gitService.getCurrentRepository();
+});
+
+// Config handlers
+ipcMain.handle('config:load', () => {
+  return loadConfig();
+});
+
+ipcMain.handle('config:save', (_, config: Config) => {
+  saveConfig(config);
 });
 
 // Security: Prevent navigation to external websites

@@ -12,7 +12,7 @@ import {
   IconButton,
   Tooltip
 } from '@mui/material';
-import { FolderOpen, Add, Refresh } from '@mui/icons-material';
+import { FolderOpen, Add, Refresh, Delete } from '@mui/icons-material';
 import { Repository } from '../types';
 
 interface SidebarProps {
@@ -21,6 +21,9 @@ interface SidebarProps {
   onRepositorySelect: (repo: Repository) => void;
   onAddRepository: () => void;
   onRefresh: () => void;
+  scanPaths: string[];
+  onAddScanPath: () => void;
+  onRemoveScanPath: (index: number) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -28,7 +31,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   currentRepository,
   onRepositorySelect,
   onAddRepository,
-  onRefresh
+  onRefresh,
+  scanPaths,
+  onAddScanPath,
+  onRemoveScanPath
 }) => {
   return (
     <Box sx={{ width: 250, bgcolor: 'background.paper', borderRight: 1, borderColor: 'divider' }}>
@@ -70,6 +76,32 @@ const Sidebar: React.FC<SidebarProps> = ({
         )}
       </List>
       <Divider />
+      <Box sx={{ p: 2 }}>
+        <Typography variant="h6" component="div" sx={{ mb: 1 }}>
+          Scan Paths
+        </Typography>
+        <List dense>
+          {scanPaths.map((path, index) => (
+            <ListItem key={path} disablePadding>
+              <ListItemButton>
+                <ListItemText primary={path} />
+                <IconButton size="small" onClick={() => onRemoveScanPath(index)}>
+                  <Delete />
+                </IconButton>
+              </ListItemButton>
+            </ListItem>
+          ))}
+          {scanPaths.length === 0 && (
+            <ListItem>
+              <ListItemText
+                primary="No scan paths"
+                secondary="Add a directory to scan for repositories"
+              />
+            </ListItem>
+          )}
+        </List>
+      </Box>
+      <Divider />
       <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
         <Button
           fullWidth
@@ -105,6 +137,14 @@ const Sidebar: React.FC<SidebarProps> = ({
           }}
         >
           Open Current Directory
+        </Button>
+        <Button
+          fullWidth
+          variant="outlined"
+          startIcon={<Add />}
+          onClick={onAddScanPath}
+        >
+          Add Scan Path
         </Button>
       </Box>
     </Box>

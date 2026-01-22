@@ -1,7 +1,6 @@
 import simpleGit, { SimpleGit, StatusResult, LogResult } from 'simple-git';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as os from 'os';
 import { GitStatus, Repository, CommitWithDiff, GetCommitsOptions, CherryPickOptions, CherryPickResult, DiffFile, CommitDiff } from './types';
 
 export class GitService {
@@ -70,7 +69,7 @@ export class GitService {
 
       return {
         staged: status.staged,
-        unstaged: [...status.modified, ...status.deleted],
+        unstaged: [...status.modified, ...status.deleted].filter(file => !status.staged.includes(file)),
         untracked: status.not_added
       };
     } catch (error) {
@@ -211,10 +210,18 @@ export class GitService {
       console.log('Getting commits with options:', options);
 
       // Use simple-git log with basic options
-      let logOptions: any = {};
+      const logOptions: Record<string, string | number> = {};
 
       if (options.limit) {
-        logOptions['--max-count'] = options.limit.toString();
+        logOptions.maxCount = options.limit;
+      }
+
+      if (options.skip) {
+        logOptions.skip = options.skip;
+      }
+
+      if (options.messageFilter) {
+        logOptions['--grep'] = options.messageFilter;
       }
 
       if (options.skip) {
@@ -227,7 +234,7 @@ export class GitService {
       const logResult: LogResult = await this.git.log(logOptions);
       console.log('Git log result:', logResult.all.length, 'commits found');
 
-      let commits: CommitWithDiff[] = logResult.all.map(commit => ({
+      const commits: CommitWithDiff[] = logResult.all.map(commit => ({
         hash: commit.hash,
         message: commit.message,
         author: commit.author_name,
@@ -240,13 +247,7 @@ export class GitService {
         }
       }));
 
-      // Filter by message if specified
-      if (options.messageFilter) {
-        const filter = options.messageFilter.toLowerCase();
-        commits = commits.filter(commit =>
-          commit.message.toLowerCase().includes(filter)
-        );
-      }
+
 
       // Load diffs if requested
       if (options.includeDiffs) {
@@ -452,25 +453,14 @@ export class GitService {
   }
 
   /**
-   * Discover git repositories in common locations
+   * Discover git repositories in specified paths
    */
-  async discoverRepositories(): Promise<Repository[]> {
+  async discoverRepositories(scanPaths: string[]): Promise<Repository[]> {
     const repositories: Repository[] = [];
-    const commonPaths = [
-      path.join(require('os').homedir(), 'Projects'),
-      path.join(require('os').homedir(), 'Documents'),
-      path.join(require('os').homedir(), 'Desktop'),
-      path.join(require('os').homedir(), 'workspace'),
-      path.join(require('os').homedir(), 'code'),
-      process.cwd(), // Also check current working directory
-    ];
 
-    console.log('Checking paths for repositories:', commonPaths);
+    console.log('Checking paths for repositories:', scanPaths);
 
-    // Also check recently opened repositories (stored in a simple file)
-    const recentRepos = await this.getRecentRepositories();
-
-    const pathsToCheck = [...commonPaths, ...recentRepos];
+    const pathsToCheck = scanPaths;
 
     for (const checkPath of pathsToCheck) {
       try {
@@ -485,12 +475,17 @@ export class GitService {
       }
     }
 
-    // Remove duplicates based on path
-    const uniqueRepos = repositories.filter((repo, index, self) =>
-      index === self.findIndex(r => r.path === repo.path)
-    );
+    // Remove duplicates based on path (case-insensitive)
+    const repoMap = new Map<string, Repository>();
+    for (const repo of repositories) {
+      const key = repo.path.toLowerCase();
+      if (!repoMap.has(key)) {
+        repoMap.set(key, repo);
+      }
+    }
+    const uniqueRepos = Array.from(repoMap.values());
 
-    return uniqueRepos.slice(0, 50); // Limit to 50 repos for performance
+    return uniqueRepos;
   }
 
   /**

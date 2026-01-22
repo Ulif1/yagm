@@ -21,11 +21,22 @@ const theme = createTheme({
 function App() {
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [currentRepository, setCurrentRepository] = useState<Repository | null>(null);
+  const [scanPaths, setScanPaths] = useState<string[]>([]);
 
-  // Load repositories on app start
+  // Load config and repositories on app start
   useEffect(() => {
+    loadConfig();
     loadRepositories();
   }, []);
+
+  const loadConfig = async () => {
+    try {
+      const config = await (window.electronAPI as any).config.load();
+      setScanPaths(config.scanPaths);
+    } catch (error) {
+      console.error('Failed to load config:', error);
+    }
+  };
 
   const loadRepositories = async () => {
     try {
@@ -73,6 +84,27 @@ function App() {
     }
   };
 
+  const handleAddScanPath = async () => {
+    try {
+      const path = await window.electronAPI.dialog.openDirectory();
+      if (path) {
+        const newScanPaths = [...scanPaths, path];
+        setScanPaths(newScanPaths);
+        await (window.electronAPI as any).config.save({ scanPaths: newScanPaths });
+        await loadRepositories(); // Refresh repos
+      }
+    } catch (error) {
+      console.error('Failed to add scan path:', error);
+    }
+  };
+
+  const handleRemoveScanPath = async (index: number) => {
+    const newScanPaths = scanPaths.filter((_, i) => i !== index);
+    setScanPaths(newScanPaths);
+    await (window.electronAPI as any).config.save({ scanPaths: newScanPaths });
+    await loadRepositories(); // Refresh repos
+  };
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -83,6 +115,9 @@ function App() {
           onRepositorySelect={handleRepositorySelect}
           onAddRepository={handleAddRepository}
           onRefresh={loadRepositories}
+          scanPaths={scanPaths}
+          onAddScanPath={handleAddScanPath}
+          onRemoveScanPath={handleRemoveScanPath}
         />
         <MainContent
           currentRepository={currentRepository}

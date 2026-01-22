@@ -30,4 +30,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dialog: {
     openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
   },
+
+  // Config operations
+  config: {
+    load: () => ipcRenderer.invoke('config:load'),
+    save: (config: { scanPaths: string[] }) => ipcRenderer.invoke('config:save', config),
+  },
 });

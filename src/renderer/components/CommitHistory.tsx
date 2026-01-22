@@ -26,6 +26,7 @@ interface CommitHistoryProps {
 
 const CommitHistory: React.FC<CommitHistoryProps> = ({ currentRepository, onCommitsSelected }) => {
   const [commits, setCommits] = useState<CommitWithDiff[]>([]);
+  const [allMatchingCommits, setAllMatchingCommits] = useState<CommitWithDiff[]>([]);
   const [loading, setLoading] = useState(false);
   const [expandedCommits, setExpandedCommits] = useState<Set<string>>(new Set());
   const [selectedCommits, setSelectedCommits] = useState<Set<string>>(new Set());
@@ -35,36 +36,49 @@ const CommitHistory: React.FC<CommitHistoryProps> = ({ currentRepository, onComm
   const [hasMore, setHasMore] = useState(true);
   const PAGE_SIZE = 50;
 
+
   const loadCommits = useCallback(async (reset: boolean = false) => {
     if (!currentRepository) return;
 
     setLoading(true);
     try {
       const options: GetCommitsOptions = {
-        limit: PAGE_SIZE,
-        skip: reset ? 0 : page * PAGE_SIZE,
         messageFilter: searchFilter || undefined,
         includeDiffs: true
       };
+
+      if (!searchFilter) {
+        options.limit = PAGE_SIZE;
+        options.skip = reset ? 0 : page * PAGE_SIZE;
+      }
 
       console.log('Loading commits with options:', options);
       const newCommits = await window.electronAPI.git.getCommits(options);
       console.log('Loaded commits:', newCommits);
 
-      if (reset) {
-        setCommits(newCommits);
+      if (searchFilter) {
+        // For search, load all matching commits, then display first PAGE_SIZE
+        setAllMatchingCommits(newCommits);
+        setCommits(newCommits.slice(0, PAGE_SIZE));
         setPage(1);
+        setHasMore(newCommits.length > PAGE_SIZE);
       } else {
-        setCommits(prev => [...prev, ...newCommits]);
-        setPage(prev => prev + 1);
+        // For normal browsing, page through commits
+        if (reset) {
+          setCommits(newCommits);
+          setPage(1);
+        } else {
+          setCommits(prev => [...prev, ...newCommits]);
+          setPage(prev => prev + 1);
+        }
+        setHasMore(newCommits.length === PAGE_SIZE);
       }
-
-      setHasMore(newCommits.length === PAGE_SIZE);
     } catch (error) {
       console.error('Failed to load commits:', error);
       // Show empty state on error
       if (reset) {
         setCommits([]);
+        setAllMatchingCommits([]);
       }
     } finally {
       setLoading(false);
@@ -79,10 +93,12 @@ const CommitHistory: React.FC<CommitHistoryProps> = ({ currentRepository, onComm
     } else {
       console.log('No current repository, clearing commits');
       setCommits([]);
+      setAllMatchingCommits([]);
       setPage(0);
       setHasMore(true);
     }
-  }, [currentRepository, loadCommits]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentRepository]);
 
   useEffect(() => {
     if (onCommitsSelected) {
@@ -147,9 +163,9 @@ const CommitHistory: React.FC<CommitHistoryProps> = ({ currentRepository, onComm
           <IconButton size="small" onClick={() => setDiffViewMode(diffViewMode === 'unified' ? 'split' : 'unified')}>
             {diffViewMode === 'unified' ? <Code /> : <ViewList />}
           </IconButton>
-          <IconButton size="small" onClick={() => loadCommits(true)}>
-            <Refresh />
-          </IconButton>
+           <IconButton size="small" onClick={() => loadCommits(true)}>
+             <Refresh />
+           </IconButton>
         </Box>
       </Box>
 
@@ -272,27 +288,39 @@ const CommitHistory: React.FC<CommitHistoryProps> = ({ currentRepository, onComm
           ))}
         </List>
 
-        {loading && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
-            <CircularProgress size={24} />
-          </Box>
-        )}
+        {hasMore && commits.length > 0 && (
+           <Box sx={{ p: 2, textAlign: 'center' }}>
+             <Button onClick={() => {
+               if (searchFilter && allMatchingCommits.length > 0) {
+                 // For search, load more from allMatchingCommits
+                 const nextPage = page + 1;
+                 setCommits(allMatchingCommits.slice(0, nextPage * PAGE_SIZE));
+                 setPage(nextPage);
+                 setHasMore(allMatchingCommits.length > nextPage * PAGE_SIZE);
+               } else {
+                 // For normal browsing, load from git
+                 loadCommits();
+               }
+             }} disabled={loading}>
+               {loading ? (
+                 <>
+                   <CircularProgress size={16} sx={{ mr: 1 }} />
+                   Loading...
+                 </>
+               ) : (
+                 'Load More Commits'
+               )}
+             </Button>
+           </Box>
+         )}
 
-        {!loading && hasMore && filteredCommits.length > 0 && (
-          <Box sx={{ p: 2, textAlign: 'center' }}>
-            <Button onClick={() => loadCommits()}>
-              Load More Commits
-            </Button>
-          </Box>
-        )}
-
-        {filteredCommits.length === 0 && !loading && (
-          <Box sx={{ p: 3, textAlign: 'center' }}>
-            <Typography variant="body2" color="text.secondary">
-              {searchFilter ? 'No commits match your search' : 'No commits yet'}
-            </Typography>
-          </Box>
-        )}
+         {filteredCommits.length === 0 && !loading && (
+           <Box sx={{ p: 3, textAlign: 'center' }}>
+             <Typography variant="body2" color="text.secondary">
+               {searchFilter ? 'No commits match your search' : 'No commits yet'}
+             </Typography>
+           </Box>
+         )}
       </Paper>
     </Box>
   );
