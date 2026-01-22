@@ -69,7 +69,7 @@ export class GitService {
 
       return {
         staged: status.staged,
-        unstaged: [...status.modified, ...status.deleted].filter(file => !status.staged.includes(file)),
+        unstaged: [...status.modified, ...status.deleted],
         untracked: status.not_added
       };
     } catch (error) {

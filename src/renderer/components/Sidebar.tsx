@@ -37,7 +37,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onRemoveScanPath
 }) => {
   return (
-    <Box sx={{ width: 250, bgcolor: 'background.paper', borderRight: 1, borderColor: 'divider' }}>
+    <Box sx={{ width: 250, bgcolor: 'background.paper', borderRight: 1, borderColor: 'divider', display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Typography variant="h6" component="div">
           Repositories
@@ -49,7 +49,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         </Tooltip>
       </Box>
       <Divider />
-      <List sx={{ flex: 1 }}>
+      <List sx={{ flex: 1, overflow: 'auto' }}>
         {repositories.map((repo) => (
           <ListItem key={repo.path} disablePadding>
             <ListItemButton
@@ -76,11 +76,11 @@ const Sidebar: React.FC<SidebarProps> = ({
         )}
       </List>
       <Divider />
-      <Box sx={{ p: 2 }}>
+      <Box sx={{ p: 2, flexShrink: 0 }}>
         <Typography variant="h6" component="div" sx={{ mb: 1 }}>
           Scan Paths
         </Typography>
-        <List dense>
+        <List dense sx={{ maxHeight: 200, overflow: 'auto' }}>
           {scanPaths.map((path, index) => (
             <ListItem key={path} disablePadding>
               <ListItemButton>
@@ -102,7 +102,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         </List>
       </Box>
       <Divider />
-      <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1, flexShrink: 0 }}>
         <Button
           fullWidth
           variant="outlined"

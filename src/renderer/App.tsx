@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import { Box } from '@mui/material';
+import { Box, Typography, Button } from '@mui/material';
 import Sidebar from './components/Sidebar';
 import MainContent from './components/MainContent';
-import { Repository } from './types';
+import CommitHistory from './components/CommitHistory';
+import CherryPickDialog from './components/CherryPickDialog';
+import { Repository, CommitWithDiff, CherryPickResult } from './types';
 
 const theme = createTheme({
   palette: {
@@ -22,6 +24,9 @@ function App() {
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [currentRepository, setCurrentRepository] = useState<Repository | null>(null);
   const [scanPaths, setScanPaths] = useState<string[]>([]);
+  const [selectedCommits, setSelectedCommits] = useState<CommitWithDiff[]>([]);
+  const [branches, setBranches] = useState<string[]>([]);
+  const [cherryPickDialogOpen, setCherryPickDialogOpen] = useState(false);
 
   // Load config and repositories on app start
   useEffect(() => {
@@ -29,12 +34,30 @@ function App() {
     loadRepositories();
   }, []);
 
+  // Load branches when repository changes
+  useEffect(() => {
+    if (currentRepository) {
+      loadBranches();
+    } else {
+      setBranches([]);
+    }
+  }, [currentRepository]);
+
   const loadConfig = async () => {
     try {
       const config = await (window.electronAPI as any).config.load();
       setScanPaths(config.scanPaths);
     } catch (error) {
       console.error('Failed to load config:', error);
+    }
+  };
+
+  const loadBranches = async () => {
+    try {
+      const branchList = await (window.electronAPI.git as any).getBranches();
+      setBranches(branchList);
+    } catch (error) {
+      console.error('Failed to load branches:', error);
     }
   };
 
@@ -105,6 +128,23 @@ function App() {
     await loadRepositories(); // Refresh repos
   };
 
+  const handleCherryPick = async (
+    commitHashes: string[],
+    targetBranch: string,
+    options: { noCommit?: boolean; squash?: boolean }
+  ): Promise<CherryPickResult> => {
+    try {
+      return await (window.electronAPI.git as any).cherryPickCommits(commitHashes, targetBranch, options);
+    } catch (error) {
+      console.error('Cherry pick failed:', error);
+      return {
+        success: false,
+        conflicts: [],
+        appliedCommits: []
+      };
+    }
+  };
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -119,8 +159,39 @@ function App() {
           onAddScanPath={handleAddScanPath}
           onRemoveScanPath={handleRemoveScanPath}
         />
-        <MainContent
-          currentRepository={currentRepository}
+        <Box sx={{ position: 'relative' }}>
+          <CommitHistory
+            currentRepository={currentRepository}
+            onCommitsSelected={setSelectedCommits}
+          />
+          {selectedCommits.length > 0 && (
+            <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, p: 2, bgcolor: 'primary.light', borderRadius: 1, m: 2 }}>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                {selectedCommits.length} commit{selectedCommits.length !== 1 ? 's' : ''} selected
+              </Typography>
+              <Button
+                size="small"
+                variant="contained"
+                onClick={() => setCherryPickDialogOpen(true)}
+              >
+                Cherry Pick to Branch
+              </Button>
+            </Box>
+          )}
+        </Box>
+        <Box sx={{ width: 400 }}>
+          <MainContent
+            currentRepository={currentRepository}
+          />
+        </Box>
+
+        <CherryPickDialog
+          open={cherryPickDialogOpen}
+          onClose={() => setCherryPickDialogOpen(false)}
+          selectedCommits={selectedCommits}
+          availableBranches={branches}
+          currentBranch={currentRepository?.currentBranch || ''}
+          onCherryPick={handleCherryPick}
         />
       </Box>
     </ThemeProvider>

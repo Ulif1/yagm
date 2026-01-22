@@ -17,10 +17,8 @@ import {
   DialogContent,
   DialogActions
 } from '@mui/material';
-import { GitStatus, Repository, CommitWithDiff, CherryPickResult } from '../types';
-import CommitHistory from './CommitHistory';
+import { GitStatus, Repository } from '../types';
 import BranchManager from './BranchManager';
-import CherryPickDialog from './CherryPickDialog';
 
 interface MainContentProps {
   currentRepository: Repository | null;
@@ -36,8 +34,7 @@ const MainContent: React.FC<MainContentProps> = ({
   const [diffDialogOpen, setDiffDialogOpen] = useState(false);
   const [diffContent, setDiffContent] = useState('');
   const [branches, setBranches] = useState<string[]>([]);
-  const [selectedCommits, setSelectedCommits] = useState<CommitWithDiff[]>([]);
-  const [cherryPickDialogOpen, setCherryPickDialogOpen] = useState(false);
+
 
   // Load git status and branches when repository changes
   useEffect(() => {
@@ -119,9 +116,7 @@ const MainContent: React.FC<MainContentProps> = ({
     }
   };
 
-  const handleCommitsSelected = (commits: CommitWithDiff[]) => {
-    setSelectedCommits(commits);
-  };
+
 
   const handlePreviewDiff = async () => {
     try {
@@ -133,31 +128,13 @@ const MainContent: React.FC<MainContentProps> = ({
     }
   };
 
-  const handleCherryPick = async (
-    commitHashes: string[],
-    targetBranch: string,
-    options: { noCommit?: boolean; squash?: boolean }
-  ): Promise<CherryPickResult> => {
-    try {
-      return await window.electronAPI.git.cherryPickCommits(commitHashes, targetBranch, options);
-    } catch (error) {
-      console.error('Cherry pick failed:', error);
-      return {
-        success: false,
-        conflicts: [],
-        appliedCommits: []
-      };
-    }
-  };
 
-  const handleCherryPickDialogClose = () => {
-    setCherryPickDialogOpen(false);
-    setSelectedCommits([]);
-  };
+
+
 
   if (!currentRepository) {
     return (
-      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
           <Typography variant="h5" component="h1">
             Yet Another Git Manager
@@ -181,8 +158,8 @@ const MainContent: React.FC<MainContentProps> = ({
   }
 
   return (
-    <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+    <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
         <Typography variant="h5" component="h1">
           {currentRepository.name}
         </Typography>
@@ -195,12 +172,13 @@ const MainContent: React.FC<MainContentProps> = ({
         />
       </Box>
 
-      <Box sx={{ flex: 1, p: 2, overflow: 'auto' }}>
-        <Grid container spacing={2}>
-          {/* Changes */}
-          <Grid item xs={12} md={6}>
+      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <Box sx={{ p: 2, flexShrink: 0 }}>
+          <Grid container spacing={2}>
+            {/* Changes */}
+            <Grid item xs={12}>
             <Card>
-              <CardContent>
+              <CardContent sx={{ height: '300px', overflow: 'auto' }}>
                 <Typography variant="h6" gutterBottom>
                   Changes
                 </Typography>
@@ -242,123 +220,99 @@ const MainContent: React.FC<MainContentProps> = ({
                       </ListItem>
                     ))}
                   </List>
-                 ) : (
-                   <Typography variant="body2" color="text.secondary">
-                     No modified files
-                   </Typography>
-                 )}
-                 <Button
-                   fullWidth
-                   variant="text"
-                   size="small"
-                   onClick={handlePreviewDiff}
-                   sx={{ mt: 1 }}
-                 >
-                   Preview Changes
-                 </Button>
-               </CardContent>
-             </Card>
-          </Grid>
-
-          {/* Commit */}
-          <Grid item xs={12} md={6}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Commit
-                </Typography>
-                <TextField
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    No modified files
+                  </Typography>
+                )}
+                <Button
                   fullWidth
-                  multiline
-                  rows={4}
-                  placeholder="Enter commit message..."
-                  value={commitMessage}
-                  onChange={(e) => setCommitMessage(e.target.value)}
-                  sx={{ mb: 2 }}
-                />
-                 <Button
-                   fullWidth
-                   variant="contained"
-                   disabled={!commitMessage.trim() || !status?.staged?.length}
-                   onClick={handleCommit}
-                 >
-                   Commit Changes
-                 </Button>
-                 <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
-                   <Button
-                     fullWidth
-                     variant="outlined"
-                     onClick={async () => {
-                       try {
-                         const success = await (window.electronAPI.git as any).pull();
-                         if (success) {
-                           loadGitStatus();
-                           // Optionally refresh commits
-                         } else {
-                           alert('Pull failed');
-                         }
-                       } catch (error) {
-                         console.error('Pull failed:', error);
-                         alert('Pull failed: ' + (error as Error).message);
-                       }
-                     }}
-                   >
-                     Pull
-                   </Button>
-                   <Button
-                     fullWidth
-                     variant="outlined"
-                     onClick={async () => {
-                       try {
-                         const success = await (window.electronAPI.git as any).push();
-                         if (success) {
-                           loadGitStatus();
-                           // Optionally refresh commits
-                         } else {
-                           alert('Push failed');
-                         }
-                       } catch (error) {
-                         console.error('Push failed:', error);
-                         alert('Push failed: ' + (error as Error).message);
-                       }
-                     }}
-                   >
-                     Push
-                   </Button>
-                 </Box>
+                  variant="text"
+                  size="small"
+                  onClick={handlePreviewDiff}
+                  sx={{ mt: 1 }}
+                >
+                  Preview Changes
+                </Button>
               </CardContent>
             </Card>
+            </Grid>
+
+            {/* Commit */}
+            <Grid item xs={12}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Commit
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={4}
+                    placeholder="Enter commit message..."
+                    value={commitMessage}
+                    onChange={(e) => setCommitMessage(e.target.value)}
+                    sx={{ mb: 2 }}
+                  />
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    disabled={!commitMessage.trim() || !status?.staged?.length}
+                    onClick={handleCommit}
+                  >
+                    Commit Changes
+                  </Button>
+                  <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      onClick={async () => {
+                        try {
+                          const success = await (window.electronAPI.git as any).pull();
+                          if (success) {
+                            loadGitStatus();
+                            // Optionally refresh commits
+                          } else {
+                            alert('Pull failed');
+                          }
+                        } catch (error) {
+                          console.error('Pull failed:', error);
+                          alert('Pull failed: ' + (error as Error).message);
+                        }
+                      }}
+                    >
+                      Pull
+                    </Button>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      onClick={async () => {
+                        try {
+                          const success = await (window.electronAPI.git as any).push();
+                          if (success) {
+                            loadGitStatus();
+                            // Optionally refresh commits
+                          } else {
+                            alert('Push failed');
+                          }
+                        } catch (error) {
+                          console.error('Push failed:', error);
+                          alert('Push failed: ' + (error as Error).message);
+                        }
+                      }}
+                    >
+                      Push
+                    </Button>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
           </Grid>
-        </Grid>
+        </Box>
 
-        <CommitHistory
-          currentRepository={currentRepository}
-          onCommitsSelected={handleCommitsSelected}
-        />
 
-        {selectedCommits.length > 0 && (
-          <Box sx={{ mt: 2, p: 2, bgcolor: 'primary.light', borderRadius: 1 }}>
-            <Typography variant="body2" sx={{ mb: 1 }}>
-              {selectedCommits.length} commit{selectedCommits.length !== 1 ? 's' : ''} selected
-            </Typography>
-            <Button
-              size="small"
-              variant="contained"
-              onClick={() => setCherryPickDialogOpen(true)}
-            >
-              Cherry Pick to Branch
-            </Button>
-          </Box>
-        )}
 
-        <CherryPickDialog
-          open={cherryPickDialogOpen}
-          onClose={handleCherryPickDialogClose}
-          selectedCommits={selectedCommits}
-          availableBranches={branches}
-          currentBranch={currentRepository?.currentBranch || ''}
-          onCherryPick={handleCherryPick}
-        />
+
 
         <Dialog
           open={diffDialogOpen}

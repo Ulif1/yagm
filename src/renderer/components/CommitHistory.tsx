@@ -154,8 +154,8 @@ const CommitHistory: React.FC<CommitHistoryProps> = ({ currentRepository, onComm
   }
 
   return (
-    <Box sx={{ mt: 3 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexShrink: 0 }}>
         <Typography variant="h6">
           Commit History
         </Typography>
@@ -163,13 +163,13 @@ const CommitHistory: React.FC<CommitHistoryProps> = ({ currentRepository, onComm
           <IconButton size="small" onClick={() => setDiffViewMode(diffViewMode === 'unified' ? 'split' : 'unified')}>
             {diffViewMode === 'unified' ? <Code /> : <ViewList />}
           </IconButton>
-           <IconButton size="small" onClick={() => loadCommits(true)}>
-             <Refresh />
-           </IconButton>
+          <IconButton size="small" onClick={() => loadCommits(true)}>
+            <Refresh />
+          </IconButton>
         </Box>
       </Box>
 
-      <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+      <Box sx={{ display: 'flex', gap: 1, mb: 2, flexShrink: 0 }}>
         <TextField
           size="small"
           placeholder="Search commits..."
@@ -197,7 +197,7 @@ const CommitHistory: React.FC<CommitHistoryProps> = ({ currentRepository, onComm
         )}
       </Box>
 
-      <Paper sx={{ maxHeight: 600, overflow: 'auto' }}>
+      <Paper sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
         <List dense>
           {filteredCommits.map((commit, index) => (
             <React.Fragment key={commit.hash}>
