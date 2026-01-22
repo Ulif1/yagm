@@ -554,11 +554,45 @@ export class GitService {
     return [];
   }
 
-  /**
-   * Close the current repository
-   */
-  closeRepository(): void {
-    this.git = null;
-    this.currentPath = null;
-  }
+   /**
+    * Push changes to remote
+    */
+   async push(): Promise<boolean> {
+     if (!this.git) {
+       return false;
+     }
+
+     try {
+       await this.git.raw(['push']);
+       return true;
+     } catch (error) {
+       console.error('Push failed:', error);
+       return false;
+     }
+   }
+
+   /**
+    * Pull changes from remote
+    */
+   async pull(): Promise<boolean> {
+     if (!this.git) {
+       return false;
+     }
+
+     try {
+       await this.git.raw(['pull']);
+       return true;
+     } catch (error) {
+       console.error('Pull failed:', error);
+       return false;
+     }
+   }
+
+   /**
+    * Close the current repository
+    */
+   closeRepository(): void {
+     this.git = null;
+     this.currentPath = null;
+   }
 }

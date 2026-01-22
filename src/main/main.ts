@@ -138,6 +138,14 @@ ipcMain.handle('git:cherryPickCommits', async (_, commitHashes: string[], target
   return await gitService.cherryPickCommits(commitHashes, targetBranch, options);
 });
 
+ipcMain.handle('git:push', async () => {
+  return await gitService.push();
+});
+
+ipcMain.handle('git:pull', async () => {
+  return await gitService.pull();
+});
+
 // Repository management handlers
 ipcMain.handle('repositories:discover', async () => {
   const config = loadConfig();

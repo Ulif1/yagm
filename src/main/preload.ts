@@ -15,8 +15,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
       checkoutBranch: (name: string) => ipcRenderer.invoke('git:checkoutBranch', name),
       mergeBranch: (sourceBranch: string) => ipcRenderer.invoke('git:mergeBranch', sourceBranch),
       rebaseBranch: (targetBranch: string) => ipcRenderer.invoke('git:rebaseBranch', targetBranch),
-      getCommits: (options?: GetCommitsOptions) => ipcRenderer.invoke('git:getCommits', options),
-      cherryPickCommits: (commitHashes: string[], targetBranch: string, options?: CherryPickOptions) => ipcRenderer.invoke('git:cherryPickCommits', commitHashes, targetBranch, options),
+       getCommits: (options?: GetCommitsOptions) => ipcRenderer.invoke('git:getCommits', options),
+       cherryPickCommits: (commitHashes: string[], targetBranch: string, options?: CherryPickOptions) => ipcRenderer.invoke('git:cherryPickCommits', commitHashes, targetBranch, options),
+       push: () => ipcRenderer.invoke('git:push'),
+       pull: () => ipcRenderer.invoke('git:pull'),
   },
 
   // Repository management

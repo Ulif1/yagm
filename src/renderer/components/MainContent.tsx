@@ -251,14 +251,56 @@ const MainContent: React.FC<MainContentProps> = ({
                   onChange={(e) => setCommitMessage(e.target.value)}
                   sx={{ mb: 2 }}
                 />
-                <Button
-                  fullWidth
-                  variant="contained"
-                  disabled={!commitMessage.trim() || !status?.staged?.length}
-                  onClick={handleCommit}
-                >
-                  Commit Changes
-                </Button>
+                 <Button
+                   fullWidth
+                   variant="contained"
+                   disabled={!commitMessage.trim() || !status?.staged?.length}
+                   onClick={handleCommit}
+                 >
+                   Commit Changes
+                 </Button>
+                 <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+                   <Button
+                     fullWidth
+                     variant="outlined"
+                     onClick={async () => {
+                       try {
+                         const success = await (window.electronAPI.git as any).pull();
+                         if (success) {
+                           loadGitStatus();
+                           // Optionally refresh commits
+                         } else {
+                           alert('Pull failed');
+                         }
+                       } catch (error) {
+                         console.error('Pull failed:', error);
+                         alert('Pull failed: ' + (error as Error).message);
+                       }
+                     }}
+                   >
+                     Pull
+                   </Button>
+                   <Button
+                     fullWidth
+                     variant="outlined"
+                     onClick={async () => {
+                       try {
+                         const success = await (window.electronAPI.git as any).push();
+                         if (success) {
+                           loadGitStatus();
+                           // Optionally refresh commits
+                         } else {
+                           alert('Push failed');
+                         }
+                       } catch (error) {
+                         console.error('Push failed:', error);
+                         alert('Push failed: ' + (error as Error).message);
+                       }
+                     }}
+                   >
+                     Push
+                   </Button>
+                 </Box>
               </CardContent>
             </Card>
           </Grid>
