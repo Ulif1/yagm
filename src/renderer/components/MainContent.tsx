@@ -11,7 +11,11 @@ import {
   List,
   ListItem,
   ListItemText,
-  Divider
+  Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import { GitStatus, Repository, CommitWithDiff, CherryPickResult } from '../types';
 import CommitHistory from './CommitHistory';
@@ -29,6 +33,8 @@ const MainContent: React.FC<MainContentProps> = ({
 }) => {
   const [status, setStatus] = useState<GitStatus | null>(null);
   const [commitMessage, setCommitMessage] = useState('');
+  const [diffDialogOpen, setDiffDialogOpen] = useState(false);
+  const [diffContent, setDiffContent] = useState('');
   const [branches, setBranches] = useState<string[]>([]);
   const [selectedCommits, setSelectedCommits] = useState<CommitWithDiff[]>([]);
   const [cherryPickDialogOpen, setCherryPickDialogOpen] = useState(false);
@@ -115,6 +121,16 @@ const MainContent: React.FC<MainContentProps> = ({
 
   const handleCommitsSelected = (commits: CommitWithDiff[]) => {
     setSelectedCommits(commits);
+  };
+
+  const handlePreviewDiff = async () => {
+    try {
+      const diff = await (window.electronAPI.git as any).getDiff(false); // Get unstaged diff
+      setDiffContent(diff);
+      setDiffDialogOpen(true);
+    } catch (error) {
+      console.error('Failed to get diff:', error);
+    }
   };
 
   const handleCherryPick = async (
@@ -226,13 +242,22 @@ const MainContent: React.FC<MainContentProps> = ({
                       </ListItem>
                     ))}
                   </List>
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No modified files
-                  </Typography>
-                )}
-              </CardContent>
-            </Card>
+                 ) : (
+                   <Typography variant="body2" color="text.secondary">
+                     No modified files
+                   </Typography>
+                 )}
+                 <Button
+                   fullWidth
+                   variant="text"
+                   size="small"
+                   onClick={handlePreviewDiff}
+                   sx={{ mt: 1 }}
+                 >
+                   Preview Changes
+                 </Button>
+               </CardContent>
+             </Card>
           </Grid>
 
           {/* Commit */}
@@ -334,6 +359,52 @@ const MainContent: React.FC<MainContentProps> = ({
           currentBranch={currentRepository?.currentBranch || ''}
           onCherryPick={handleCherryPick}
         />
+
+        <Dialog
+          open={diffDialogOpen}
+          onClose={() => setDiffDialogOpen(false)}
+          maxWidth="lg"
+          fullWidth
+        >
+          <DialogTitle>Changes Preview</DialogTitle>
+          <DialogContent>
+            <Box
+              sx={{
+                fontFamily: 'monospace',
+                fontSize: '0.875rem',
+                bgcolor: 'grey.900',
+                color: 'white',
+                p: 2,
+                borderRadius: 1,
+                overflow: 'auto',
+                maxHeight: 600,
+                '& .diff-added': { color: '#4ade80' },
+                '& .diff-removed': { color: '#f87171' },
+                '& .diff-header': { color: '#fbbf24' }
+              }}
+            >
+              {diffContent ? (
+                diffContent.split('\n').map((line, index) => (
+                  <div
+                    key={index}
+                    className={
+                      line.startsWith('+') ? 'diff-added' :
+                      line.startsWith('-') ? 'diff-removed' :
+                      line.startsWith('@@') ? 'diff-header' : ''
+                    }
+                  >
+                    {line || '\u00A0'}
+                  </div>
+                ))
+              ) : (
+                'No changes to preview'
+              )}
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setDiffDialogOpen(false)}>Close</Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </Box>
   );

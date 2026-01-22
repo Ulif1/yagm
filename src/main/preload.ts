@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
        cherryPickCommits: (commitHashes: string[], targetBranch: string, options?: CherryPickOptions) => ipcRenderer.invoke('git:cherryPickCommits', commitHashes, targetBranch, options),
        push: () => ipcRenderer.invoke('git:push'),
        pull: () => ipcRenderer.invoke('git:pull'),
+       getDiff: (staged?: boolean) => ipcRenderer.invoke('git:getDiff', staged),
   },
 
   // Repository management

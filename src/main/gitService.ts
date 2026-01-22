@@ -589,6 +589,24 @@ export class GitService {
    }
 
    /**
+    * Get diff for changes
+    */
+   async getDiff(staged: boolean = false): Promise<string> {
+     if (!this.git) {
+       return '';
+     }
+
+     try {
+       const args = staged ? ['diff', '--cached'] : ['diff'];
+       const result = await this.git.raw(args);
+       return result;
+     } catch (error) {
+       console.error('Failed to get diff:', error);
+       return '';
+     }
+    }
+
+   /**
     * Close the current repository
     */
    closeRepository(): void {

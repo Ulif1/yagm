@@ -146,6 +146,10 @@ ipcMain.handle('git:pull', async () => {
   return await gitService.pull();
 });
 
+ipcMain.handle('git:getDiff', async (_, staged: boolean) => {
+  return await gitService.getDiff(staged);
+});
+
 // Repository management handlers
 ipcMain.handle('repositories:discover', async () => {
   const config = loadConfig();
