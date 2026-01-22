@@ -150,7 +150,18 @@ const CommitHistory: React.FC<CommitHistoryProps> = ({ currentRepository, onComm
   );
 
   if (!currentRepository) {
-    return null;
+    return (
+      <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 3 }}>
+        <Box sx={{ textAlign: 'center' }}>
+          <Typography variant="h5" gutterBottom>
+            No Repository Selected
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            Select a repository from the sidebar to view commit history
+          </Typography>
+        </Box>
+      </Box>
+    );
   }
 
   return (
