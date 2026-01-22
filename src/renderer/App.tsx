@@ -149,17 +149,19 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Box sx={{ display: 'flex', height: '100vh' }}>
-        <Sidebar
-          repositories={repositories}
-          currentRepository={currentRepository}
-          onRepositorySelect={handleRepositorySelect}
-          onAddRepository={handleAddRepository}
-          onRefresh={loadRepositories}
-          scanPaths={scanPaths}
-          onAddScanPath={handleAddScanPath}
-          onRemoveScanPath={handleRemoveScanPath}
-        />
-        <Box sx={{ position: 'relative' }}>
+        <Box sx={{ flex: 1, minWidth: 250 }}>
+          <Sidebar
+            repositories={repositories}
+            currentRepository={currentRepository}
+            onRepositorySelect={handleRepositorySelect}
+            onAddRepository={handleAddRepository}
+            onRefresh={loadRepositories}
+            scanPaths={scanPaths}
+            onAddScanPath={handleAddScanPath}
+            onRemoveScanPath={handleRemoveScanPath}
+          />
+        </Box>
+        <Box sx={{ flex: 4, position: 'relative' }}>
           <CommitHistory
             currentRepository={currentRepository}
             onCommitsSelected={setSelectedCommits}
@@ -179,7 +181,7 @@ function App() {
             </Box>
           )}
         </Box>
-        <Box sx={{ width: 400 }}>
+        <Box sx={{ flex: 2, minWidth: 400 }}>
           <MainContent
             currentRepository={currentRepository}
           />
