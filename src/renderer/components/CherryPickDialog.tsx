@@ -15,6 +15,7 @@ import {
   Box,
   Chip,
   CircularProgress,
+  LinearProgress,
   Alert
 } from '@mui/material';
 import { CommitWithDiff, CherryPickResult } from '../types';
@@ -31,6 +32,9 @@ interface CherryPickDialogProps {
   }) => Promise<CherryPickResult>;
 }
 
+// Global operation lock to prevent simultaneous cherry-picks
+let isCherryPickingInProgress = false;
+
 const CherryPickDialog: React.FC<CherryPickDialogProps> = ({
   open,
   onClose,
@@ -44,6 +48,7 @@ const CherryPickDialog: React.FC<CherryPickDialogProps> = ({
   const [squash, setSquash] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CherryPickResult | null>(null);
+  const [progress, setProgress] = useState({ current: 0, total: 0, currentCommit: '' });
 
   React.useEffect(() => {
     if (open) {
@@ -51,14 +56,36 @@ const CherryPickDialog: React.FC<CherryPickDialogProps> = ({
       setNoCommit(false);
       setSquash(false);
       setResult(null);
+      setProgress({ current: 0, total: 0, currentCommit: '' });
     }
   }, [open, currentBranch]);
 
   const handleCherryPick = async () => {
     if (!targetBranch || selectedCommits.length === 0) return;
 
+    // Prevent simultaneous cherry-pick operations
+    if (isCherryPickingInProgress) {
+      console.warn('Cherry-pick operation already in progress, ignoring request');
+      return;
+    }
+
+    isCherryPickingInProgress = true;
     setLoading(true);
     setResult(null);
+    setProgress({ current: 0, total: selectedCommits.length, currentCommit: '' });
+
+    // Simulate progress for multi-commit operations
+    let progressInterval: NodeJS.Timeout | null = null;
+    if (selectedCommits.length > 1) {
+      let currentProgress = 0;
+      progressInterval = setInterval(() => {
+        currentProgress = Math.min(currentProgress + 10, 90); // Cap at 90% until completion
+        setProgress(prev => ({
+          ...prev,
+          current: Math.floor((currentProgress / 100) * selectedCommits.length)
+        }));
+      }, 200);
+    }
 
     try {
       const result = await onCherryPick(
@@ -66,8 +93,23 @@ const CherryPickDialog: React.FC<CherryPickDialogProps> = ({
         targetBranch,
         { noCommit, squash }
       );
+      
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+      
+      // Update progress based on actual result
+      setProgress({
+        current: result.appliedCommits.length,
+        total: selectedCommits.length,
+        currentCommit: ''
+      });
+      
       setResult(result);
     } catch (error) {
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
       console.error('Cherry pick failed:', error);
       setResult({
         success: false,
@@ -76,6 +118,7 @@ const CherryPickDialog: React.FC<CherryPickDialogProps> = ({
       });
     } finally {
       setLoading(false);
+      isCherryPickingInProgress = false;
     }
   };
 
@@ -175,25 +218,51 @@ const CherryPickDialog: React.FC<CherryPickDialogProps> = ({
                   </Typography>
                 )}
               </Box>
-            ) : (
-              <Box>
-                <Typography variant="body2">
-                  Cherry pick failed.
-                </Typography>
-                {result.conflicts.length > 0 && (
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    Conflicts in: {result.conflicts.join(', ')}
+              ) : (
+                <Box>
+                  <Typography variant="body2">
+                    Cherry pick failed.
                   </Typography>
-                )}
-              </Box>
-            )}
+                  {result.errorMessage && (
+                    <Typography variant="body2" sx={{ mt: 1, color: 'error.main' }}>
+                      {result.errorMessage}
+                    </Typography>
+                  )}
+                  {result.conflicts.length > 0 && (
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      Conflicts in: {result.conflicts.join(', ')}
+                    </Typography>
+                  )}
+                  {result.errorType && (
+                    <Typography variant="caption" sx={{ mt: 1, display: 'block', opacity: 0.7 }}>
+                      Error type: {result.errorType.replace('_', ' ')}
+                    </Typography>
+                  )}
+                </Box>
+              )}
           </Alert>
         )}
 
         {loading && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-            <CircularProgress size={20} />
-            <Typography variant="body2">Applying commits...</Typography>
+          <Box sx={{ mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <CircularProgress size={20} />
+              <Typography variant="body2">
+                Applying commits... {progress.current > 0 && `(${progress.current}/${progress.total})`}
+              </Typography>
+            </Box>
+            {progress.total > 1 && (
+              <Box sx={{ mt: 1 }}>
+                <LinearProgress 
+                  variant="determinate" 
+                  value={(progress.current / progress.total) * 100}
+                  sx={{ height: 6, borderRadius: 3 }}
+                />
+                <Typography variant="caption" sx={{ mt: 0.5, display: 'block' }}>
+                  Processing {progress.current} of {progress.total} commits
+                </Typography>
+              </Box>
+            )}
           </Box>
         )}
       </DialogContent>

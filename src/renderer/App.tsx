@@ -177,7 +177,16 @@ function App() {
     options: { noCommit?: boolean; squash?: boolean }
   ): Promise<CherryPickResult> => {
     try {
-      return await (window.electronAPI.git as any).cherryPickCommits(commitHashes, targetBranch, options);
+      const result = await (window.electronAPI.git as any).cherryPickCommits(commitHashes, targetBranch, options);
+      
+      // Refresh repository state after cherry-pick
+      if (currentRepository) {
+        await loadBranches();
+        // Trigger commit reload in CommitHistory component
+        setCurrentRepository({...currentRepository});
+      }
+      
+      return result;
     } catch (error) {
       console.error('Cherry pick failed:', error);
       return {

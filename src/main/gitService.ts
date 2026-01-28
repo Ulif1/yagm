@@ -346,7 +346,9 @@ export class GitService {
     const result: CherryPickResult = {
       success: true,
       conflicts: [],
-      appliedCommits: []
+      appliedCommits: [],
+      totalCommits: commitHashes.length,
+      progress: 0
     };
 
     // Get current branch for restoration later
@@ -360,7 +362,11 @@ export class GitService {
       }
 
       // Process each commit
-      for (const commitHash of commitHashes) {
+      for (let i = 0; i < commitHashes.length; i++) {
+        const commitHash = commitHashes[i];
+        result.currentCommit = commitHash;
+        result.progress = Math.round((i / commitHashes.length) * 100);
+        
         try {
           const cherryPickArgs = [commitHash];
 
@@ -373,14 +379,28 @@ export class GitService {
           result.appliedCommits.push(commitHash);
         } catch (error: unknown) {
           // Check if there are conflicts
-          const status = await this.getStatus();
-          if (status.unstaged.length > 0 || status.staged.length > 0) {
-            result.conflicts = [...status.unstaged, ...status.staged];
+          try {
+            const status = await this.getStatus();
+            if (status.unstaged.length > 0 || status.staged.length > 0) {
+              result.conflicts = [...status.unstaged, ...status.staged];
+              result.success = false;
+              result.errorType = 'conflict';
+              result.errorMessage = `Merge conflicts detected while cherry-picking commit ${commitHash.substring(0, 7)}`;
+              break;
+            } else {
+              // Other error - provide detailed message
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              result.success = false;
+              result.errorType = this.classifyError(errorMessage);
+              result.errorMessage = `Failed to cherry-pick commit ${commitHash.substring(0, 7)}: ${errorMessage}`;
+              break;
+            }
+          } catch (statusError) {
+            // If we can't even get status, provide a generic error
             result.success = false;
+            result.errorType = 'git_error';
+            result.errorMessage = `Failed to cherry-pick commit ${commitHash.substring(0, 7)} and could not determine repository status`;
             break;
-          } else {
-            // Other error
-            throw error;
           }
         }
       }
@@ -393,18 +413,76 @@ export class GitService {
     } catch (error) {
       console.error('Failed to cherry pick commits:', error);
       result.success = false;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      result.errorType = this.classifyError(errorMessage);
+      result.errorMessage = `Cherry pick operation failed: ${errorMessage}`;
     }
 
     // Restore original branch if we switched
     if (currentBranch !== targetBranch) {
-      try {
-        await this.git.checkout(currentBranch);
-      } catch (checkoutError) {
-        console.error('Failed to restore original branch:', checkoutError);
+      let restoreAttempts = 0;
+      const maxRestoreAttempts = 3;
+      
+      while (restoreAttempts < maxRestoreAttempts) {
+        try {
+          // Verify we're on the target branch before restoring
+          const currentBranchAfterOp = await this.getCurrentBranch();
+          if (currentBranchAfterOp !== currentBranch) {
+            await this.git.checkout(currentBranch);
+            console.log(`Successfully restored to branch ${currentBranch}`);
+          }
+          break;
+        } catch (checkoutError) {
+          restoreAttempts++;
+          console.error(`Failed to restore original branch (attempt ${restoreAttempts}/${maxRestoreAttempts}):`, checkoutError);
+          
+          if (restoreAttempts >= maxRestoreAttempts) {
+            // If we can't restore, at least try to get back to a known state
+            try {
+              const currentStatus = await this.getStatus();
+              if (currentStatus.unstaged.length > 0 || currentStatus.staged.length > 0) {
+                console.warn('Repository has uncommitted changes after failed branch restoration');
+                result.conflicts = [...currentStatus.unstaged, ...currentStatus.staged];
+                result.success = false;
+              }
+            } catch (statusError) {
+              console.error('Failed to get repository status after failed branch restoration:', statusError);
+            }
+            
+            result.success = false;
+            result.conflicts.push(`Failed to restore branch ${currentBranch}: ${checkoutError instanceof Error ? checkoutError.message : 'Unknown error'}`);
+          } else {
+            // Brief delay before retry
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        }
       }
     }
 
+    // Final progress update
+    result.progress = 100;
+    result.currentCommit = undefined;
+    
     return result;
+  }
+
+  private classifyError(errorMessage: string): 'conflict' | 'branch_error' | 'git_error' | 'permission_error' | 'unknown' {
+    const lowerError = errorMessage.toLowerCase();
+    
+    if (lowerError.includes('conflict') || lowerError.includes('merge')) {
+      return 'conflict';
+    }
+    if (lowerError.includes('permission') || lowerError.includes('denied') || lowerError.includes('access')) {
+      return 'permission_error';
+    }
+    if (lowerError.includes('branch') || lowerError.includes('checkout') || lowerError.includes('head')) {
+      return 'branch_error';
+    }
+    if (lowerError.includes('git') || lowerError.includes('repository') || lowerError.includes('index')) {
+      return 'git_error';
+    }
+    
+    return 'unknown';
   }
 
   /**

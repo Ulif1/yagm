@@ -57,4 +57,9 @@ export interface CherryPickResult {
   success: boolean;
   conflicts: string[]; // File paths with conflicts
   appliedCommits: string[]; // Successfully applied commit hashes
+  totalCommits?: number; // Total commits being processed
+  currentCommit?: string; // Currently processing commit hash
+  progress?: number; // Progress as percentage (0-100)
+  errorMessage?: string; // Detailed error message
+  errorType?: 'conflict' | 'branch_error' | 'git_error' | 'permission_error' | 'unknown'; // Type of error
 }

@@ -37,8 +37,8 @@ const CommitHistory: React.FC<CommitHistoryProps> = ({ currentRepository, onComm
   const PAGE_SIZE = 50;
 
 
-  const loadCommits = useCallback(async (reset: boolean = false) => {
-    if (!currentRepository) return;
+  const loadCommits = useCallback(async (reset: boolean = false, abortSignal?: AbortSignal) => {
+    if (!currentRepository || abortSignal?.aborted) return;
 
     setLoading(true);
     try {
@@ -54,6 +54,10 @@ const CommitHistory: React.FC<CommitHistoryProps> = ({ currentRepository, onComm
 
       console.log('Loading commits with options:', options);
       const newCommits = await window.electronAPI.git.getCommits(options);
+      
+      // Check if operation was aborted while fetching
+      if (abortSignal?.aborted) return;
+      
       console.log('Loaded commits:', newCommits);
 
       if (searchFilter) {
@@ -74,6 +78,8 @@ const CommitHistory: React.FC<CommitHistoryProps> = ({ currentRepository, onComm
         setHasMore(newCommits.length === PAGE_SIZE);
       }
     } catch (error) {
+      if (abortSignal?.aborted) return;
+      
       console.error('Failed to load commits:', error);
       // Show empty state on error
       if (reset) {
@@ -81,15 +87,21 @@ const CommitHistory: React.FC<CommitHistoryProps> = ({ currentRepository, onComm
         setAllMatchingCommits([]);
       }
     } finally {
-      setLoading(false);
+      if (!abortSignal?.aborted) {
+        setLoading(false);
+      }
     }
   }, [currentRepository, page, searchFilter]);
 
   useEffect(() => {
+    const abortController = new AbortController();
+    
     console.log('CommitHistory useEffect triggered, currentRepository:', currentRepository);
     if (currentRepository) {
       console.log('Loading commits for repository:', currentRepository.path);
-      loadCommits(true);
+      loadCommits(true, abortController.signal).catch(() => {
+        // Ignore abort errors
+      });
     } else {
       console.log('No current repository, clearing commits');
       setCommits([]);
@@ -97,6 +109,10 @@ const CommitHistory: React.FC<CommitHistoryProps> = ({ currentRepository, onComm
       setPage(0);
       setHasMore(true);
     }
+    
+    return () => {
+      abortController.abort();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentRepository]);
 
